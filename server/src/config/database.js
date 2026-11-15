@@ -1,7 +1,11 @@
 import mongoose from 'mongoose';
+import { EmailToken } from '../models/EmailToken.js';
+import { RefreshSession } from '../models/RefreshSession.js';
+import { User } from '../models/User.js';
 
 export async function connectDatabase(uri) {
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
+  await Promise.all([User.init(), EmailToken.init(), RefreshSession.init()]);
   return mongoose.connection;
 }
 
