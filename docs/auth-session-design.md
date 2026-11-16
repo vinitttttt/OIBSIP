@@ -16,4 +16,12 @@ Customer cookies are scoped to `/api/v1/auth`; admin cookies are scoped to `/api
 
 Auth limiters currently use the built-in in-memory store. This works for one API process; a multi-instance production deployment must configure a shared rate-limit store and set `TRUST_PROXY_HOPS` to the known proxy topology. Registration and login errors must remain generic with respect to account existence. The reusable Zod schemas reject unknown body fields and enforce password byte limits before bcrypt.
 
-No registration, login, refresh, email delivery, or password-reset flow is implemented by this milestone.
+Login, refresh, password-reset flows are not implemented by this milestone.
+
+## Customer registration and email verification
+
+Registration accepts only name, normalized email, and a password that meets the shared policy. It always creates a customer with `emailVerifiedAt: null`; the existing unique email index handles duplicate addresses. The password is bcrypt-hashed before persistence. A random opaque token is sent once by email, while only its peppered HMAC hash is stored in `EmailToken` with purpose `email_verification` and an explicit expiry. The existing TTL index is cleanup only; verification checks expiry in its atomic consume query.
+
+Verification consumes the matching-purpose token and updates that token's customer in one MongoDB transaction. A failed user update rolls back consumption. Resend is rate-limited, applies a per-account cooldown, invalidates older unused verification tokens, and responds identically whether an eligible account exists or email delivery succeeds. Provider failures are swallowed at the delivery boundary; registration remains unverified and resend can issue a fresh token. The Resend key and sender stay in server environment configuration. Local setup and Resend's test-sender restriction are documented in the root README.
+
+Login, access/refresh token issuance, logout, and password reset remain unfinished and return the existing explicit 501 response.

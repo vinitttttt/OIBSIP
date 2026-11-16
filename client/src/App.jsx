@@ -1,3 +1,6 @@
+import RegisterPage from './RegisterPage.jsx';
+import VerifyEmailPage from './VerifyEmailPage.jsx';
+
 const pizzas = [
   { name: 'The Margherita', detail: 'Tomato, mozzarella, fresh basil', price: '₹249', art: '🍅', tone: 'tomato' },
   { name: 'Garden Hop', detail: 'Bell pepper, olives, sweet corn', price: '₹329', art: '🫑', tone: 'garden' },
@@ -5,12 +8,14 @@ const pizzas = [
 ];
 
 function App() {
+  if (window.location.pathname === '/register') return <RegisterPage />;
+  if (window.location.pathname === '/verify-email') return <VerifyEmailPage />;
   return (
     <main>
       <nav className="nav wrap" aria-label="Main navigation">
         <a className="brand" href="#home" aria-label="PizzaHop home"><span className="brand-mark">P</span> PizzaHop<span className="brand-dot">.</span></a>
         <div className="nav-links"><a href="#menu">Our menu</a><a href="#about">How it works</a></div>
-        <a className="nav-cta" href="#menu">Order now <span aria-hidden="true">↗</span></a>
+        <a className="nav-cta" href="/register">Join PizzaHop <span aria-hidden="true">↗</span></a>
       </nav>
 
       <section className="hero wrap" id="home">

@@ -16,16 +16,19 @@ import { comparePassword, hashPassword } from '../src/utils/passwords.js';
 import { getRefreshCookieOptions } from '../src/utils/refreshCookie.js';
 import { createAccessToken, generateOpaqueToken, hashToken } from '../src/utils/tokens.js';
 import { consumeEmailToken } from '../src/services/emailTokenService.js';
+import { setEmailSenderForTesting } from '../src/services/emailService.js';
 import { bcryptSafePassword, emailSchema, loginPassword, registerSchema, tokenSchema } from '../src/validation/authSchemas.js';
 
 const tag = randomUUID();
 const emailFor = (suffix) => `${suffix}-${tag}@example.test`;
+const routeRegistrationEmail = emailFor('route-registration');
 let server;
 let baseUrl;
 let customer;
 let admin;
 
 before(async () => {
+  setEmailSenderForTesting(async () => {});
   await connectDatabase(env.mongoUri);
   await Promise.all([User.init(), EmailToken.init(), RefreshSession.init()]);
   customer = await User.create({ name: 'Review Customer', email: emailFor('customer'), passwordHash: 'test-hash' });
@@ -35,12 +38,15 @@ before(async () => {
 });
 
 after(async () => {
+  const routeUser = await User.findOne({ email: routeRegistrationEmail }).select('_id');
   if (customer?._id) await User.deleteOne({ _id: customer._id });
   if (admin?._id) await User.deleteOne({ _id: admin._id });
-  await EmailToken.deleteMany({ user: { $in: [customer?._id, admin?._id].filter(Boolean) } });
+  if (routeUser?._id) await User.deleteOne({ _id: routeUser._id });
+  await EmailToken.deleteMany({ user: { $in: [customer?._id, admin?._id, routeUser?._id].filter(Boolean) } });
   await RefreshSession.deleteMany({ userId: { $in: [customer?._id, admin?._id].filter(Boolean) } });
   if (server) await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   await mongoose.disconnect();
+  setEmailSenderForTesting(undefined);
 });
 
 test('email validation normalizes addresses and rejects invalid/unknown input', () => {
@@ -233,15 +239,15 @@ test('auth schemas reject bad body fields and preserve explicit unfinished respo
   assert.equal(response.status, 400);
   response = await fetch(`${baseUrl}/auth/register`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'A', email: 'new@example.test', password: 'GoodPassword123!' }),
+    body: JSON.stringify({ name: 'A', email: routeRegistrationEmail, password: 'GoodPassword123!' }),
   });
-  assert.equal(response.status, 501);
+  assert.equal(response.status, 201);
   response = await fetch(`${baseUrl}/auth/register`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: 'x'.repeat(20_000), email: 'large@example.test', password: 'GoodPassword123!' }),
   });
   assert.equal(response.status, 413);
-  const validBody = JSON.stringify({ name: 'A', email: 'new@example.test', password: 'GoodPassword123!' });
+  const validBody = JSON.stringify({ name: 'A', email: routeRegistrationEmail, password: 'GoodPassword123!' });
   await fetch(`${baseUrl}/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: validBody });
   await fetch(`${baseUrl}/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: validBody });
   response = await fetch(`${baseUrl}/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: validBody });

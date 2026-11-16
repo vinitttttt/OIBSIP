@@ -23,6 +23,16 @@ if (!corsOrigin.length || corsOrigin.some((origin) => {
   }
 })) throw new Error('CORS_ORIGIN must contain comma-separated HTTP(S) origins without paths');
 
+const frontendOrigin = process.env.FRONTEND_ORIGIN?.trim() || corsOrigin[0];
+try {
+  const parsedFrontendOrigin = new URL(frontendOrigin);
+  if (!['http:', 'https:'].includes(parsedFrontendOrigin.protocol) || parsedFrontendOrigin.origin !== frontendOrigin) throw new Error();
+} catch {
+  throw new Error('FRONTEND_ORIGIN must be an HTTP(S) origin without a path');
+}
+const emailFrom = process.env.EMAIL_FROM?.trim() || 'onboarding@resend.dev';
+if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailFrom)) throw new Error('EMAIL_FROM must be a valid email address');
+
 const authRequired = ['JWT_ACCESS_SECRET', 'JWT_ACCESS_TTL', 'JWT_REFRESH_SECRET', 'JWT_REFRESH_TTL', 'TOKEN_HASH_PEPPER'];
 const missingAuth = authRequired.filter((name) => !process.env[name]?.trim());
 if (missingAuth.length) throw new Error(`Missing required authentication environment variables: ${missingAuth.join(', ')}`);
@@ -63,6 +73,8 @@ const authRateLimits = Object.freeze({
   verification: positiveInt('AUTH_VERIFY_RATE_LIMIT_MAX', '10', 1000),
   passwordReset: positiveInt('AUTH_PASSWORD_RESET_RATE_LIMIT_MAX', '5', 1000),
 });
+const emailVerificationTtl = durationMs('EMAIL_VERIFICATION_TTL', '24h', 7 * 86_400_000);
+const emailVerificationResendCooldown = durationMs('EMAIL_VERIFICATION_RESEND_COOLDOWN', '60s', 3_600_000);
 const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 0);
 if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 5) throw new Error('TRUST_PROXY_HOPS must be an integer between 0 and 5');
 
@@ -71,6 +83,12 @@ export const env = Object.freeze({
   port,
   mongoUri: process.env.MONGODB_URI,
   corsOrigin,
+  frontendOrigin,
+  resendApiKey: process.env.RESEND_API_KEY,
+  emailFrom,
+  emailVerificationTtl: emailVerificationTtl.milliseconds,
+  emailVerificationTtlLabel: emailVerificationTtl.value,
+  emailVerificationResendCooldown: emailVerificationResendCooldown.milliseconds,
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET,
   jwtAccessTtl: accessTtl.value,
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET,

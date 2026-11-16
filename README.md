@@ -40,4 +40,12 @@ The Vite client runs on port 5173 and the API on port 3000 by default. Set `PORT
 
 ## Milestone scope
 
-The current foundation milestone provides the app shell, landing page, Express middleware, MongoDB connection, and health endpoint. Authentication, payments, and ordering/inventory business features are not included yet.
+The current milestones provide the app shell, landing page, health endpoint, customer registration, and email verification. Login, refresh sessions, password reset, payments, and ordering/inventory business features are not included yet.
+
+## Customer email verification (Milestone 2B)
+
+Set `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_ORIGIN`, `EMAIL_VERIFICATION_TTL`, and `EMAIL_VERIFICATION_RESEND_COOLDOWN` in `server/.env`. The API key stays server-side. For local setup, Resend's `onboarding@resend.dev` sender is suitable for development, but Resend restricts its unverified test sender to the account owner's verified recipient addresses. To email arbitrary customers, verify a sending domain in Resend, configure its DNS records, and set `EMAIL_FROM` to an address on that domain.
+
+Run the app as described above, visit <http://localhost:5173/register>, and create a customer account. Open the verification email and follow its link; the frontend submits the token to `POST /api/v1/auth/verify-email`. If delivery is delayed, the registration confirmation and verification error pages can request another email. The resend API always returns the same generic message. Do not put the Resend key in any `VITE_` variable.
+
+The email expiry and resend cooldown default to 24 hours and 60 seconds. `FRONTEND_ORIGIN` must be an HTTP(S) origin without a path. Automated tests use a mocked email sender and do not contact Resend.
