@@ -1,5 +1,8 @@
 import RegisterPage from './RegisterPage.jsx';
 import VerifyEmailPage from './VerifyEmailPage.jsx';
+import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from './AuthPages.jsx';
+import { authRequest, setAccessToken } from './api.js';
+import { useEffect, useState } from 'react';
 
 const pizzas = [
   { name: 'The Margherita', detail: 'Tomato, mozzarella, fresh basil', price: '₹249', art: '🍅', tone: 'tomato' },
@@ -8,6 +11,28 @@ const pizzas = [
 ];
 
 function App() {
+  const [account, setAccount] = useState(null);
+  const [authState, setAuthState] = useState('loading');
+  const isAdmin = window.location.pathname === '/admin';
+  const protectedPage = isAdmin || window.location.pathname === '/account';
+  useEffect(() => {
+    if (!protectedPage) return;
+    const base = isAdmin ? '/admin/auth' : '/auth';
+    authRequest(`${base}/refresh`, { method: 'POST', token: null }).then((session) => {
+      setAccessToken(session.accessToken);
+      return authRequest(`${base}/me`);
+    }).then((result) => { setAccount(result.user); setAuthState('ready'); }).catch(() => { setAuthState('signed-out'); });
+  }, []);
+  if (window.location.pathname === '/login') return <LoginPage />;
+  if (window.location.pathname === '/admin/login') return <LoginPage admin />;
+  if (window.location.pathname === '/forgot-password') return <ForgotPasswordPage />;
+  if (window.location.pathname === '/reset-password') return <ResetPasswordPage />;
+  if (protectedPage) {
+    if (authState === 'loading') return <main className="auth-page"><section className="auth-card">Checking your session…</section></main>;
+    if (authState === 'signed-out') return <LoginPage admin={isAdmin} />;
+    const logout = async () => { await authRequest(`${isAdmin ? '/admin/auth' : '/auth'}/logout`, { method: 'POST', token: null }); setAccessToken(null); setAccount(null); setAuthState('signed-out'); };
+    return <main className="auth-page"><nav className="auth-nav"><a className="brand" href="/"><span className="brand-mark">P</span> PizzaHop<span className="brand-dot">.</span></a><button className="button button-outline" onClick={logout}>Sign out</button></nav><section className="auth-card"><p className="eyebrow"><span /> {isAdmin ? 'ADMIN ACCESS' : 'YOUR ACCOUNT'}</p><h1>{isAdmin ? 'Welcome, admin.' : `Welcome, ${account.name}.`}</h1><p className="auth-intro">Signed in as {account.email}</p><p className="auth-intro">{isAdmin ? 'Your admin authentication is ready.' : 'Your PizzaHop account is ready.'}</p></section></main>;
+  }
   if (window.location.pathname === '/register') return <RegisterPage />;
   if (window.location.pathname === '/verify-email') return <VerifyEmailPage />;
   return (
@@ -15,7 +40,7 @@ function App() {
       <nav className="nav wrap" aria-label="Main navigation">
         <a className="brand" href="#home" aria-label="PizzaHop home"><span className="brand-mark">P</span> PizzaHop<span className="brand-dot">.</span></a>
         <div className="nav-links"><a href="#menu">Our menu</a><a href="#about">How it works</a></div>
-        <a className="nav-cta" href="/register">Join PizzaHop <span aria-hidden="true">↗</span></a>
+        <a className="nav-cta" href="/login">Sign in</a><a className="nav-cta" href="/register">Join PizzaHop <span aria-hidden="true">↗</span></a>
       </nav>
 
       <section className="hero wrap" id="home">

@@ -40,7 +40,7 @@ The Vite client runs on port 5173 and the API on port 3000 by default. Set `PORT
 
 ## Milestone scope
 
-The current milestones provide the app shell, landing page, health endpoint, customer registration, and email verification. Login, refresh sessions, password reset, payments, and ordering/inventory business features are not included yet.
+The current milestones provide the app shell, customer registration and verification, customer/admin login, refresh sessions, logout, password reset, and basic protected account pages. Payments and ordering/inventory business features are not included yet.
 
 ## Customer email verification (Milestone 2B)
 
@@ -49,3 +49,11 @@ Set `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_ORIGIN`, `EMAIL_VERIFICATION_TTL`,
 Run the app as described above, visit <http://localhost:5173/register>, and create a customer account. Open the verification email and follow its link; the frontend submits the token to `POST /api/v1/auth/verify-email`. If delivery is delayed, the registration confirmation and verification error pages can request another email. The resend API always returns the same generic message. Do not put the Resend key in any `VITE_` variable.
 
 The email expiry and resend cooldown default to 24 hours and 60 seconds. `FRONTEND_ORIGIN` must be an HTTP(S) origin without a path. Automated tests use a mocked email sender and do not contact Resend.
+
+## Authentication and admin setup (Milestone 2C)
+
+Authentication uses `JWT_ACCESS_SECRET`, `JWT_ACCESS_TTL`, `JWT_REFRESH_SECRET`, `JWT_REFRESH_TTL`, and `TOKEN_HASH_PEPPER` from `server/.env`. Keep the access JWT lifetime short (15 minutes by default). The refresh token is opaque, stored only as a peppered hash in MongoDB, and sent in an HttpOnly audience-specific cookie. `AUTH_COOKIE_SAME_SITE` defaults to `lax`; cross-site deployment needs HTTPS, `none`, and an exact frontend origin in `CORS_ORIGIN`.
+
+Password reset links use `PASSWORD_RESET_TTL` (default `1h`) and the existing Resend sender configuration. Set `ADMIN_SEED_EMAIL` and a strong `ADMIN_SEED_PASSWORD` in `server/.env`, then run `npm run seed:admin --workspace @pizzahop/server`. The seed is safe to rerun for the same admin account; it does not provide a public admin registration endpoint. Do not commit environment credentials.
+
+Customer pages: `/login`, `/register`, `/forgot-password`, `/reset-password`, and `/account`. Admin sign-in: `/admin/login`; the protected admin placeholder is `/admin`. Password reset email delivery requires the same Resend setup described above.

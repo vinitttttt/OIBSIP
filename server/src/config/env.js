@@ -74,6 +74,7 @@ const authRateLimits = Object.freeze({
   passwordReset: positiveInt('AUTH_PASSWORD_RESET_RATE_LIMIT_MAX', '5', 1000),
 });
 const emailVerificationTtl = durationMs('EMAIL_VERIFICATION_TTL', '24h', 7 * 86_400_000);
+const passwordResetTtl = durationMs('PASSWORD_RESET_TTL', '1h', 24 * 3_600_000);
 const emailVerificationResendCooldown = durationMs('EMAIL_VERIFICATION_RESEND_COOLDOWN', '60s', 3_600_000);
 const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 0);
 if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 5) throw new Error('TRUST_PROXY_HOPS must be an integer between 0 and 5');
@@ -89,6 +90,10 @@ export const env = Object.freeze({
   emailVerificationTtl: emailVerificationTtl.milliseconds,
   emailVerificationTtlLabel: emailVerificationTtl.value,
   emailVerificationResendCooldown: emailVerificationResendCooldown.milliseconds,
+  passwordResetTtl: passwordResetTtl.milliseconds,
+  passwordResetTtlLabel: passwordResetTtl.value,
+  adminSeedEmail: process.env.ADMIN_SEED_EMAIL?.trim().toLowerCase(),
+  adminSeedPassword: process.env.ADMIN_SEED_PASSWORD,
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET,
   jwtAccessTtl: accessTtl.value,
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET,

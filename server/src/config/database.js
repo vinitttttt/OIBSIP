@@ -14,3 +14,7 @@ export function getDatabaseStatus() {
   const readyState = mongoose.connection.readyState;
   return { status: readyState === 1 ? 'connected' : 'disconnected', state: states[readyState] ?? 'unknown' };
 }
+
+export async function disconnectDatabase() {
+  await mongoose.disconnect();
+}

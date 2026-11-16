@@ -26,6 +26,8 @@ let server;
 let baseUrl;
 let customer;
 let admin;
+let verifiedLogin;
+let unverifiedLogin;
 
 before(async () => {
   setEmailSenderForTesting(async () => {});
@@ -33,6 +35,8 @@ before(async () => {
   await Promise.all([User.init(), EmailToken.init(), RefreshSession.init()]);
   customer = await User.create({ name: 'Review Customer', email: emailFor('customer'), passwordHash: 'test-hash' });
   admin = await User.create({ name: 'Review Admin', email: emailFor('admin'), passwordHash: 'test-hash', role: 'admin' });
+  verifiedLogin = await User.create({ name: 'Verified Login', email: emailFor('verified-login'), passwordHash: await hashPassword('CorrectPassword123!'), emailVerifiedAt: new Date() });
+  unverifiedLogin = await User.create({ name: 'Unverified Login', email: emailFor('unverified-login'), passwordHash: await hashPassword('CorrectPassword123!') });
   server = app.listen(0);
   baseUrl = `http://127.0.0.1:${server.address().port}/api/v1`;
 });
@@ -41,9 +45,13 @@ after(async () => {
   const routeUser = await User.findOne({ email: routeRegistrationEmail }).select('_id');
   if (customer?._id) await User.deleteOne({ _id: customer._id });
   if (admin?._id) await User.deleteOne({ _id: admin._id });
+  if (verifiedLogin?._id) await User.deleteOne({ _id: verifiedLogin._id });
+  if (unverifiedLogin?._id) await User.deleteOne({ _id: unverifiedLogin._id });
   if (routeUser?._id) await User.deleteOne({ _id: routeUser._id });
   await EmailToken.deleteMany({ user: { $in: [customer?._id, admin?._id, routeUser?._id].filter(Boolean) } });
   await RefreshSession.deleteMany({ userId: { $in: [customer?._id, admin?._id].filter(Boolean) } });
+  if (verifiedLogin?._id) await RefreshSession.deleteMany({ userId: verifiedLogin._id });
+  if (unverifiedLogin?._id) await RefreshSession.deleteMany({ userId: unverifiedLogin._id });
   if (server) await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   await mongoose.disconnect();
   setEmailSenderForTesting(undefined);
@@ -119,6 +127,72 @@ test('JWT middleware rejects absent, malformed, expired, missing-exp and bad-rol
   assert.equal(response.status, 401, 'invalid role claims are rejected');
 });
 
+test('customer login requires verified email, refresh rotates, logout revokes, and admin role stays isolated', async () => {
+  const post = (path, body, cookie) => fetch(`${baseUrl}${path}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}), Origin: env.corsOrigin[0] }, body: JSON.stringify(body ?? {}),
+  });
+  const creds = { email: verifiedLogin.email, password: 'CorrectPassword123!' };
+  let response = await post('/auth/login', { email: unverifiedLogin.email, password: 'CorrectPassword123!' });
+  assert.equal(response.status, 403);
+  response = await post('/auth/login', { ...creds, password: 'WrongPassword123!' });
+  assert.equal(response.status, 401);
+  response = await post('/auth/login', creds);
+  assert.equal(response.status, 200);
+  const loginData = await response.json();
+  assert.equal(loginData.user.role, 'customer');
+  assert.equal(typeof loginData.accessToken, 'string');
+  const firstCookie = response.headers.get('set-cookie').split(';')[0];
+  response = await fetch(`${baseUrl}/admin/auth/me`, { headers: { Authorization: `Bearer ${loginData.accessToken}` } });
+  assert.equal(response.status, 403);
+  response = await post('/auth/refresh', null, firstCookie);
+  assert.equal(response.status, 200);
+  const rotatedCookie = response.headers.get('set-cookie').split(';')[0];
+  assert.notEqual(rotatedCookie, firstCookie);
+  response = await post('/auth/refresh', null, firstCookie);
+  assert.equal(response.status, 401, 'reuse of the rotated token is rejected');
+  response = await post('/auth/refresh', null, rotatedCookie);
+  assert.equal(response.status, 401, 'reuse revokes the entire token family');
+  response = await post('/auth/login', creds);
+  const logoutCookie = response.headers.get('set-cookie').split(';')[0];
+  assert.equal((await post('/auth/logout', null, logoutCookie)).status, 204);
+  assert.equal((await post('/auth/refresh', null, logoutCookie)).status, 401, 'logout revokes its refresh session');
+});
+
+test('admin login requires admin role and password reset invalidates sessions', async () => {
+  const password = 'CorrectAdmin123!';
+  const loginAdmin = await User.create({ name: 'Flow Admin', email: emailFor('flow-admin'), passwordHash: await hashPassword(password), role: 'admin', emailVerifiedAt: new Date() });
+  const resetUser = await User.create({ name: 'Reset User', email: emailFor('reset-user'), passwordHash: await hashPassword('OldPassword123!'), emailVerifiedAt: new Date() });
+  let resetEmail;
+  setEmailSenderForTesting(async (message) => { resetEmail = message; });
+  try {
+    const badAdmin = await fetch(`${baseUrl}/admin/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: verifiedLogin.email, password: 'CorrectPassword123!' }) });
+    assert.equal(badAdmin.status, 401);
+    const adminResponse = await fetch(`${baseUrl}/admin/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: loginAdmin.email, password }) });
+    assert.equal(adminResponse.status, 200);
+    const adminData = await adminResponse.json();
+    assert.equal(adminData.user.role, 'admin');
+
+    const loginResponse = await fetch(`${baseUrl}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: resetUser.email, password: 'OldPassword123!' }) });
+    const oldSessionCookie = loginResponse.headers.get('set-cookie').split(';')[0];
+    const forgotResponse = await fetch(`${baseUrl}/auth/forgot-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: resetUser.email }) });
+    assert.equal(forgotResponse.status, 200);
+    const resetUrl = /href="([^"]*reset-password[^"]*)"/.exec(resetEmail.html)?.[1].replaceAll('&amp;', '&');
+    assert(resetUrl);
+    const token = new URL(resetUrl).searchParams.get('token');
+    const resetResponse = await fetch(`${baseUrl}/auth/reset-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, password: 'NewPassword123!' }) });
+    assert.equal(resetResponse.status, 200);
+    assert.equal((await fetch(`${baseUrl}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: resetUser.email, password: 'OldPassword123!' }) })).status, 401);
+    assert.equal((await fetch(`${baseUrl}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: resetUser.email, password: 'NewPassword123!' }) })).status, 200);
+    assert.equal((await fetch(`${baseUrl}/auth/refresh`, { method: 'POST', headers: { Origin: env.corsOrigin[0], Cookie: oldSessionCookie } })).status, 401);
+    assert.equal((await fetch(`${baseUrl}/auth/reset-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, password: 'OtherPassword123!' }) })).status, 400);
+  } finally {
+    setEmailSenderForTesting(async () => {});
+    await User.deleteMany({ _id: { $in: [loginAdmin._id, resetUser._id] } });
+    await EmailToken.deleteMany({ user: { $in: [loginAdmin._id, resetUser._id] } });
+    await RefreshSession.deleteMany({ userId: { $in: [loginAdmin._id, resetUser._id] } });
+  }
+});
+
 test('middleware rejects deleted, inactive, and invalid-role users', async () => {
   const inactive = await User.create({ name: 'Inactive', email: emailFor('inactive'), passwordHash: 'test-hash', isActive: false });
   const inactiveToken = createAccessToken(inactive);
@@ -143,7 +217,7 @@ test('middleware rejects deleted, inactive, and invalid-role users', async () =>
 test('admin demotion immediately removes admin access; customer gets 403', async () => {
   const token = createAccessToken(admin);
   let response = await fetch(`${baseUrl}/admin/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
-  assert.equal(response.status, 501);
+  assert.equal(response.status, 200);
   response = await fetch(`${baseUrl}/admin/auth/me`, { headers: { Authorization: `Bearer ${createAccessToken(customer)}` } });
   assert.equal(response.status, 403);
   await User.updateOne({ _id: admin._id }, { $set: { role: 'customer' } });
@@ -200,7 +274,7 @@ test('cookies have audience paths and safe attributes; cookie mutations enforce 
   assert.equal((await fetch(`${baseUrl}/auth/refresh`, { method: 'POST' })).status, 403);
   assert.equal((await fetch(`${baseUrl}/auth/refresh`, { method: 'POST', headers: { Origin: 'https://attacker.example' } })).status, 403);
   const response = await fetch(`${baseUrl}/auth/refresh`, { method: 'POST', headers: { Origin: env.corsOrigin[0] } });
-  assert.equal(response.status, 501);
+  assert.equal(response.status, 401);
 });
 
 test('query strings and raw internal errors are not reflected or logged', async () => {
@@ -227,7 +301,7 @@ test('query strings and raw internal errors are not reflected or logged', async 
   }
 });
 
-test('auth schemas reject bad body fields and preserve explicit unfinished response', async () => {
+test('auth schemas reject bad body fields and registration input is validated', async () => {
   let response = await fetch(`${baseUrl}/auth/register`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'A', email: 'bad', password: 'weak' }),
   });
