@@ -27,7 +27,7 @@ before(async () => {
   const product = await Product.create({ slug, name: 'Test Pizza', description: 'A test pizza for the catalogue.', basePrice: 200, image: '/images/pizza-placeholder.svg' });
   ids.product = String(product._id);
   for (const [category, price] of [['base', 10], ['sauce', 5], ['cheese', 20], ['vegetable', 7]]) {
-    const item = await InventoryItem.create({ sku: sku(category), name: `Test ${category}`, category, price, available: true });
+    const item = await InventoryItem.create({ sku: sku(category), name: `Test ${category}`, category, price, isAvailable: true, onHand: 10, reserved: 0 });
     ids[category] = String(item._id);
   }
   server = app.listen(0);
@@ -72,11 +72,11 @@ test('customizer options expose categories and backend pricing validates ingredi
 
   const invalid = await fetch(`${baseUrl}/customizer/price`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...selection, vegetableIds: [new mongoose.Types.ObjectId().toString()] }) });
   assert.equal(invalid.status, 400);
-  await InventoryItem.updateOne({ _id: ids.vegetable }, { $set: { available: false } });
+  await InventoryItem.updateOne({ _id: ids.vegetable }, { $set: { isAvailable: false } });
   try {
     const unavailable = await fetch(`${baseUrl}/customizer/price`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selection) });
     assert.equal(unavailable.status, 400);
-  } finally { await InventoryItem.updateOne({ _id: ids.vegetable }, { $set: { available: true } }); }
+  } finally { await InventoryItem.updateOne({ _id: ids.vegetable }, { $set: { isAvailable: true } }); }
   const frontendPrice = await fetch(`${baseUrl}/customizer/price`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...selection, price: 1 }) });
   assert.equal(frontendPrice.status, 400, 'client-supplied prices are not accepted');
 });
@@ -94,6 +94,11 @@ test('cart requires a customer access token and persists a server-priced customi
   assert.equal(cart.items.length, 1);
   assert.equal(cart.items[0].unitPrice, 242);
   assert.equal(cart.subtotal, 484);
+  const overStock = await fetch(`${baseUrl}/cart/items`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ productId: ids.product, baseId: ids.base, sauceId: ids.sauce, cheeseId: ids.cheese, vegetableIds: [ids.vegetable], quantity: 20 }),
+  });
+  assert.equal(overStock.status, 409);
   const itemId = cart.items[0].id;
   const updated = await fetch(`${baseUrl}/cart/items/${itemId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ quantity: 3 }) });
   assert.equal((await updated.json()).subtotal, 726);

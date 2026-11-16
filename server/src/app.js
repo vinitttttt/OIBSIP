@@ -8,6 +8,7 @@ import healthRouter from './routes/health.js';
 import authRouter from './routes/auth.js';
 import adminAuthRouter from './routes/adminAuth.js';
 import catalogueRouter from './routes/catalogue.js';
+import inventoryAdminRouter from './routes/adminInventory.js';
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use((req, res, next) => {
 app.use('/api/v1', healthRouter);
 app.use('/api/v1', authRouter);
 app.use('/api/v1', adminAuthRouter);
+app.use('/api/v1', inventoryAdminRouter);
 app.use('/api/v1', catalogueRouter);
 app.use(notFound);
 app.use(errorHandler);

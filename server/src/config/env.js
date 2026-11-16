@@ -78,6 +78,10 @@ const passwordResetTtl = durationMs('PASSWORD_RESET_TTL', '1h', 24 * 3_600_000);
 const emailVerificationResendCooldown = durationMs('EMAIL_VERIFICATION_RESEND_COOLDOWN', '60s', 3_600_000);
 const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 0);
 if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 5) throw new Error('TRUST_PROXY_HOPS must be an integer between 0 and 5');
+const inventoryLowStockThreshold = positiveInt('INVENTORY_LOW_STOCK_THRESHOLD', '10', 1_000_000);
+const inventoryAlertCheckIntervalMs = positiveInt('INVENTORY_ALERT_CHECK_INTERVAL_MS', '300000', 86_400_000);
+const inventoryAlertEmail = process.env.INVENTORY_ALERT_EMAIL?.trim() || process.env.ADMIN_SEED_EMAIL?.trim().toLowerCase();
+if (inventoryAlertEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inventoryAlertEmail)) throw new Error('INVENTORY_ALERT_EMAIL must be a valid email address');
 
 export const env = Object.freeze({
   nodeEnv,
@@ -103,4 +107,7 @@ export const env = Object.freeze({
   authRateLimitWindowMs,
   authRateLimits,
   trustProxyHops,
+  inventoryLowStockThreshold,
+  inventoryAlertEmail,
+  inventoryAlertCheckIntervalMs,
 });

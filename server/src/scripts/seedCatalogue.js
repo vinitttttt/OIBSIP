@@ -37,7 +37,22 @@ const ingredients = [
 try {
   await connectDatabase(env.mongoUri);
   for (const product of products) await Product.updateOne({ slug: product.slug }, { $set: product }, { upsert: true, runValidators: true });
-  for (const ingredient of ingredients) await InventoryItem.updateOne({ sku: ingredient.sku }, { $set: ingredient }, { upsert: true, runValidators: true });
+  await InventoryItem.collection.updateMany({}, [
+    { $set: {
+      onHand: { $ifNull: ['$onHand', 100] },
+      reserved: { $ifNull: ['$reserved', 0] },
+      lowStockThreshold: { $ifNull: ['$lowStockThreshold', env.inventoryLowStockThreshold] },
+      isAvailable: { $ifNull: ['$isAvailable', { $ifNull: ['$available', true] }] },
+    } },
+    { $unset: 'available' },
+  ]);
+  for (const ingredient of ingredients) {
+    const { sku: ingredientSku, ...fields } = ingredient;
+    await InventoryItem.updateOne({ sku: ingredientSku }, {
+      $set: fields,
+      $setOnInsert: { onHand: 100, reserved: 0, lowStockThreshold: env.inventoryLowStockThreshold, isAvailable: true },
+    }, { upsert: true, runValidators: true });
+  }
   console.info(`Catalogue ready: ${products.length} pizzas, ${ingredients.length} ingredients.`);
 } catch (error) {
   console.error(error.message);

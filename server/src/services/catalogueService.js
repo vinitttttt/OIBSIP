@@ -26,27 +26,28 @@ export async function getCatalogueProduct(id) {
 }
 
 export async function getCustomizerOptions() {
-  const items = await InventoryItem.find({ available: true }).sort({ category: 1, displayOrder: 1, name: 1 }).lean();
-  return Object.fromEntries(categories.map((category) => [category, items.filter((item) => item.category === category).map((item) => ({
+  const items = await InventoryItem.find({ isAvailable: true }).sort({ category: 1, displayOrder: 1, name: 1 }).lean();
+  return Object.fromEntries(categories.map((category) => [category, items.filter((item) => item.category === category && item.onHand - item.reserved > 0).map((item) => ({
     id: String(item._id), name: item.name, price: item.price, currency: 'INR',
   }))]));
 }
 
-async function resolveCustomization(selection) {
+async function resolveCustomization(selection, requiredQuantity = 1) {
   if (!mongoose.isValidObjectId(selection.productId)) throw authError(400, 'INVALID_PRODUCT_ID', 'Product id is invalid.');
   const product = await Product.findOne({ _id: selection.productId, available: true }).lean();
   if (!product) throw authError(400, 'UNAVAILABLE_SELECTION', 'That pizza is unavailable.');
 
   const ids = [selection.baseId, selection.sauceId, selection.cheeseId, ...selection.vegetableIds];
   if (new Set(ids).size !== ids.length) throw authError(400, 'INVALID_INGREDIENTS', 'Ingredient selections must be unique.');
-  const items = await InventoryItem.find({ _id: { $in: ids }, available: true }).lean();
+  const items = await InventoryItem.find({ _id: { $in: ids }, isAvailable: true }).lean();
   const byId = new Map(items.map((item) => [String(item._id), item]));
   const picked = [
     [selection.baseId, 'base'], [selection.sauceId, 'sauce'], [selection.cheeseId, 'cheese'],
     ...selection.vegetableIds.map((id) => [id, 'vegetable']),
   ].map(([id, category]) => {
     const item = byId.get(String(id));
-    if (!item || item.category !== category) throw authError(400, 'INVALID_INGREDIENTS', 'One or more ingredient selections are invalid or unavailable.');
+    if (!item || item.category !== category || item.isAvailable === false) throw authError(400, 'INVALID_INGREDIENTS', 'One or more ingredient selections are invalid or unavailable.');
+    if ((item.onHand ?? 0) - (item.reserved ?? 0) < requiredQuantity) throw authError(409, 'INSUFFICIENT_STOCK', 'An ingredient does not have enough available stock for this cart quantity.');
     return item;
   });
   const total = Number((product.basePrice + picked.reduce((sum, item) => sum + item.price, 0)).toFixed(2));
@@ -95,11 +96,12 @@ export async function getCustomerCart(userId) {
 }
 
 export async function addCustomerCartItem(userId, selection) {
-  await resolveCustomization(selection);
   const cart = await getOrCreateCart(userId);
   const existing = cart.items.find((line) => sameSelection(line, selection));
-  if (existing) existing.quantity = Math.min(20, existing.quantity + selection.quantity);
-  else cart.items.push(selection);
+  const nextQuantity = Math.min(20, (existing?.quantity ?? 0) + selection.quantity);
+  await resolveCustomization(selection, nextQuantity);
+  if (existing) existing.quantity = nextQuantity;
+  else cart.items.push({ ...selection, quantity: nextQuantity });
   await cart.save();
   return serializeCart(cart);
 }

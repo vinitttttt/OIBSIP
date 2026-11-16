@@ -3,13 +3,14 @@ import RegisterPage from './RegisterPage.jsx';
 import VerifyEmailPage from './VerifyEmailPage.jsx';
 import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from './AuthPages.jsx';
 import { CartPage, CataloguePage, CataloguePreview, PizzaDetailPage } from './CataloguePages.jsx';
+import InventoryDashboard from './InventoryDashboard.jsx';
 import { authRequest, setAccessToken } from './api.js';
 
 function App() {
   const [account, setAccount] = useState(null);
   const [authState, setAuthState] = useState('loading');
   const path = window.location.pathname;
-  const isAdmin = path === '/admin';
+  const isAdmin = path === '/admin' || path.startsWith('/admin/');
   const protectedPage = isAdmin || path === '/account';
   const pizzaRoute = /^\/pizza\/([^/]+)$/.exec(path);
 
@@ -37,6 +38,7 @@ function App() {
     const logout = async () => {
       try { await authRequest(`${isAdmin ? '/admin/auth' : '/auth'}/logout`, { method: 'POST', token: null }); } finally { setAccessToken(null); setAccount(null); setAuthState('signed-out'); }
     };
+    if (isAdmin) return <InventoryDashboard onLogout={logout}/>;
     return <main className="auth-page"><nav className="auth-nav"><a className="brand" href="/"><span className="brand-mark">P</span> PizzaHop<span className="brand-dot">.</span></a><button className="button button-outline" onClick={logout}>Sign out</button></nav><section className="auth-card"><p className="eyebrow"><span /> {isAdmin ? 'ADMIN ACCESS' : 'YOUR ACCOUNT'}</p><h1>{isAdmin ? 'Welcome, admin.' : `Welcome, ${account.name}.`}</h1><p className="auth-intro">Signed in as {account.email}</p><p className="auth-intro">{isAdmin ? 'Your admin authentication is ready.' : 'Your PizzaHop account is ready.'}</p></section></main>;
   }
 

@@ -23,3 +23,14 @@ export function passwordResetEmail({ name, resetUrl, expiryLabel }) {
     html: `<!doctype html><html><body style="margin:0;background:#fffaf3;font-family:Arial,sans-serif;color:#20251f"><main style="max-width:560px;margin:32px auto;padding:32px;background:#fff;border:1px solid #eee8dc;border-radius:12px"><p style="font-size:22px;font-weight:bold;color:#244d3d">PizzaHop</p><h1 style="font-size:25px">Reset your password</h1><p>Hi ${safeName},</p><p>Use the link below to choose a new password. It expires in ${safeExpiry}.</p><p style="margin:28px 0"><a href="${safeUrl}" style="display:inline-block;background:#244d3d;color:#fff;padding:14px 22px;border-radius:7px;text-decoration:none;font-weight:bold">Reset password</a></p><p>If you did not request this, you can ignore this email.</p></main></body></html>`,
   };
 }
+
+export function inventoryLowStockEmail({ itemName, category, available, threshold, dashboardUrl }) {
+  const safeName = escapeHtml(itemName);
+  const safeCategory = escapeHtml(category);
+  const safeUrl = escapeHtml(dashboardUrl);
+  return {
+    subject: `PizzaHop low stock: ${safeName}`,
+    text: `${itemName} (${category}) is below its low-stock threshold. Available: ${available}; threshold: ${threshold}. Review it in the admin inventory: ${dashboardUrl}`,
+    html: `<!doctype html><html><body style="margin:0;background:#fffaf3;font-family:Arial,sans-serif;color:#20251f"><main style="max-width:560px;margin:32px auto;padding:32px;background:#fff;border:1px solid #eee8dc;border-radius:12px"><p style="font-size:22px;font-weight:bold;color:#244d3d">PizzaHop inventory</p><h1 style="font-size:24px">Low stock warning</h1><p><strong>${safeName}</strong> (${safeCategory}) is below its low-stock threshold.</p><p>Available quantity: <strong>${available}</strong><br>Threshold: ${threshold}</p><p style="margin:26px 0"><a href="${safeUrl}" style="display:inline-block;background:#244d3d;color:#fff;padding:13px 20px;border-radius:7px;text-decoration:none;font-weight:bold">Open inventory</a></p></main></body></html>`,
+  };
+}
