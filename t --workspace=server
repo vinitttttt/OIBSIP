@@ -1,0 +1,9 @@
+warning: in the working copy of 'package-lock.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/.env.example', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/src/app.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/src/config/database.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/src/config/env.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/src/middleware/errorHandler.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/src/middleware/notFound.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/src/server.js', LF will be replaced by CRLF the next time Git touches it
