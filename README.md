@@ -27,6 +27,36 @@ PizzaHop is a pizza ordering and inventory management application built with Rea
 
 The API exits at startup if required configuration is missing or MongoDB cannot be reached. The health endpoint returns HTTP 503 while the database is disconnected. No mock database connection is used.
 
+## Docker development setup (Windows)
+
+Docker Compose runs the Vite development server, Express API, and MongoDB 7 on one internal network. MongoDB starts with replica set `rs0`; an idempotent one-shot initializer waits for the member to become primary, and the API is not started until that initialization succeeds. MongoDB data lives in the named `mongo_data` volume. The frontend and API source directories are mounted for live development. This setup does not read `server/.env` and the Dockerfiles never copy environment files into their images.
+
+In PowerShell from the repository root, create the Docker-specific environment file:
+
+```powershell
+Copy-Item .env.docker.example .env.docker
+```
+
+Edit `.env.docker` and replace `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `TOKEN_HASH_PEPPER` with three independent random values. Generate each with `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`; also set a strong `ADMIN_SEED_PASSWORD`. Keep `.env.docker` local. `RESEND_API_KEY` can remain blank for basic local testing; emails will not be delivered. The mock payment provider is enabled only for this development setup and remains prohibited when `NODE_ENV=production`.
+
+Start the services and build their images:
+
+```powershell
+docker compose up --build
+```
+
+Open <http://localhost:5173>. Verify the API and database at <http://localhost:3000/api/v1/health>. Check replica-set readiness with:
+
+```powershell
+docker compose exec mongo mongosh --quiet --eval "rs.status().set + ' / ' + rs.status().members[0].stateStr"
+```
+
+The expected result is `rs0 / PRIMARY`. `mongo-rs-init` runs on each Compose startup and safely leaves an already initialized `rs0` in place. The API waits for that service to complete before starting; its Compose health check waits for the database-backed health endpoint. The frontend uses `http://localhost:3000/api/v1` from the browser, while the API reaches MongoDB using the internal `mongo` service hostname.
+
+Stop the containers with `Ctrl+C`, or from another PowerShell window run `docker compose down`. This stops/removes containers but keeps `mongo_data` for the next start. To intentionally erase the local database too, run `docker compose down --volumes`.
+
+The Docker frontend runs Vite in development mode, not as a production static server. The existing local workflow (`npm install`, `npm run dev`, and `npm run build`) remains unchanged.
+
 ## Other commands
 
 ```powershell
