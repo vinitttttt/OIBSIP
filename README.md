@@ -40,7 +40,7 @@ The Vite client runs on port 5173 and the API on port 3000 by default. Set `PORT
 
 ## Milestone scope
 
-The current milestones provide the app shell, customer registration and verification, customer/admin login, refresh sessions, logout, password reset, and basic protected account pages. Payments and ordering/inventory business features are not included yet.
+The current milestones provide the app shell, customer registration and verification, customer/admin login, refresh sessions, logout, password reset, a pizza catalogue and customizer, and a customer cart. Checkout, payments, order management, and inventory management are not included yet.
 
 ## Customer email verification (Milestone 2B)
 
@@ -57,3 +57,11 @@ Authentication uses `JWT_ACCESS_SECRET`, `JWT_ACCESS_TTL`, `JWT_REFRESH_SECRET`,
 Password reset links use `PASSWORD_RESET_TTL` (default `1h`) and the existing Resend sender configuration. Set `ADMIN_SEED_EMAIL` and a strong `ADMIN_SEED_PASSWORD` in `server/.env`, then run `npm run seed:admin --workspace @pizzahop/server`. The seed is safe to rerun for the same admin account; it does not provide a public admin registration endpoint. Do not commit environment credentials.
 
 Customer pages: `/login`, `/register`, `/forgot-password`, `/reset-password`, and `/account`. Admin sign-in: `/admin/login`; the protected admin placeholder is `/admin`. Password reset email delivery requires the same Resend setup described above.
+
+## Catalogue and custom pizza builder (Milestone 3)
+
+Run `npm run seed:catalogue --workspace @pizzahop/server` after MongoDB is available. It idempotently seeds five menu pizzas and 20 selectable ingredients (five bases, five sauces, four cheeses, and six vegetables). Ingredient records use the `InventoryItem` model and hold backend controlled prices and availability. Pizza art uses the local `/images/pizza-placeholder.svg` illustration.
+
+Catalogue endpoints are `GET /api/v1/catalogue`, `GET /api/v1/catalogue/:id`, `GET /api/v1/customizer/options`, and `POST /api/v1/customizer/price`. The quote body contains `productId`, `baseId`, `sauceId`, `cheeseId`, and `vegetableIds`; price fields are rejected. Customer cart endpoints are `GET /api/v1/cart`, `POST /api/v1/cart/items`, `PATCH /api/v1/cart/items/:itemId`, and `DELETE /api/v1/cart/items/:itemId`, all protected by customer JWT authorization. Cart lines store selected IDs and quantity; displayed prices and subtotals are recalculated from current product and ingredient records.
+
+Open `/catalogue`, choose a pizza, customize it, and add it to the cart. A customer must sign in before adding a pizza; `/cart` supports quantity changes and removal. Cart data is per customer. There is no checkout or stock deduction in this milestone.

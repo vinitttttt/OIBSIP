@@ -13,7 +13,9 @@ export function LoginPage({ admin = false }) {
       const result = admin
         ? await authRequest('/admin/auth/login', { method: 'POST', body: form, token: null })
         : await postAuth('login', form);
-      window.location.assign(admin ? '/admin' : '/account');
+      const requested = new URLSearchParams(window.location.search).get('next');
+      const next = requested && requested.startsWith('/') && !requested.startsWith('//') ? requested : (admin ? '/admin' : '/account');
+      window.location.assign(admin ? '/admin' : next);
     } catch (error) { setState({ busy: false, error: error.message }); }
   }
   return <Shell title={admin ? 'Admin sign in.' : 'Welcome back.'} note={admin ? 'Sign in to the PizzaHop admin area.' : 'Sign in to pick up where your next slice left off.'}><form className="auth-form" onSubmit={submit}>

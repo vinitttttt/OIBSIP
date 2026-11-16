@@ -2,10 +2,13 @@ import mongoose from 'mongoose';
 import { EmailToken } from '../models/EmailToken.js';
 import { RefreshSession } from '../models/RefreshSession.js';
 import { User } from '../models/User.js';
+import { Product } from '../models/Product.js';
+import { InventoryItem } from '../models/InventoryItem.js';
+import { Cart } from '../models/Cart.js';
 
 export async function connectDatabase(uri) {
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
-  await Promise.all([User.init(), EmailToken.init(), RefreshSession.init()]);
+  await Promise.all([User.init(), EmailToken.init(), RefreshSession.init(), Product.init(), InventoryItem.init(), Cart.init()]);
   return mongoose.connection;
 }
 

@@ -1,72 +1,58 @@
+import { useEffect, useState } from 'react';
 import RegisterPage from './RegisterPage.jsx';
 import VerifyEmailPage from './VerifyEmailPage.jsx';
 import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from './AuthPages.jsx';
+import { CartPage, CataloguePage, CataloguePreview, PizzaDetailPage } from './CataloguePages.jsx';
 import { authRequest, setAccessToken } from './api.js';
-import { useEffect, useState } from 'react';
-
-const pizzas = [
-  { name: 'The Margherita', detail: 'Tomato, mozzarella, fresh basil', price: '₹249', art: '🍅', tone: 'tomato' },
-  { name: 'Garden Hop', detail: 'Bell pepper, olives, sweet corn', price: '₹329', art: '🫑', tone: 'garden' },
-  { name: 'Smoky Mushroom', detail: 'Roasted mushroom, herbs, cheese', price: '₹349', art: '🍄', tone: 'mushroom' },
-];
 
 function App() {
   const [account, setAccount] = useState(null);
   const [authState, setAuthState] = useState('loading');
-  const isAdmin = window.location.pathname === '/admin';
-  const protectedPage = isAdmin || window.location.pathname === '/account';
+  const path = window.location.pathname;
+  const isAdmin = path === '/admin';
+  const protectedPage = isAdmin || path === '/account';
+  const pizzaRoute = /^\/pizza\/([^/]+)$/.exec(path);
+
   useEffect(() => {
     if (!protectedPage) return;
     const base = isAdmin ? '/admin/auth' : '/auth';
     authRequest(`${base}/refresh`, { method: 'POST', token: null }).then((session) => {
       setAccessToken(session.accessToken);
       return authRequest(`${base}/me`);
-    }).then((result) => { setAccount(result.user); setAuthState('ready'); }).catch(() => { setAuthState('signed-out'); });
+    }).then((result) => { setAccount(result.user); setAuthState('ready'); }).catch(() => setAuthState('signed-out'));
   }, []);
-  if (window.location.pathname === '/login') return <LoginPage />;
-  if (window.location.pathname === '/admin/login') return <LoginPage admin />;
-  if (window.location.pathname === '/forgot-password') return <ForgotPasswordPage />;
-  if (window.location.pathname === '/reset-password') return <ResetPasswordPage />;
+
+  if (path === '/login') return <LoginPage />;
+  if (path === '/admin/login') return <LoginPage admin />;
+  if (path === '/forgot-password') return <ForgotPasswordPage />;
+  if (path === '/reset-password') return <ResetPasswordPage />;
+  if (path === '/register') return <RegisterPage />;
+  if (path === '/verify-email') return <VerifyEmailPage />;
+  if (path === '/catalogue') return <CataloguePage />;
+  if (path === '/cart') return <CartPage />;
+  if (pizzaRoute) return <PizzaDetailPage productId={decodeURIComponent(pizzaRoute[1])} />;
   if (protectedPage) {
     if (authState === 'loading') return <main className="auth-page"><section className="auth-card">Checking your session…</section></main>;
     if (authState === 'signed-out') return <LoginPage admin={isAdmin} />;
-    const logout = async () => { await authRequest(`${isAdmin ? '/admin/auth' : '/auth'}/logout`, { method: 'POST', token: null }); setAccessToken(null); setAccount(null); setAuthState('signed-out'); };
+    const logout = async () => {
+      try { await authRequest(`${isAdmin ? '/admin/auth' : '/auth'}/logout`, { method: 'POST', token: null }); } finally { setAccessToken(null); setAccount(null); setAuthState('signed-out'); }
+    };
     return <main className="auth-page"><nav className="auth-nav"><a className="brand" href="/"><span className="brand-mark">P</span> PizzaHop<span className="brand-dot">.</span></a><button className="button button-outline" onClick={logout}>Sign out</button></nav><section className="auth-card"><p className="eyebrow"><span /> {isAdmin ? 'ADMIN ACCESS' : 'YOUR ACCOUNT'}</p><h1>{isAdmin ? 'Welcome, admin.' : `Welcome, ${account.name}.`}</h1><p className="auth-intro">Signed in as {account.email}</p><p className="auth-intro">{isAdmin ? 'Your admin authentication is ready.' : 'Your PizzaHop account is ready.'}</p></section></main>;
   }
-  if (window.location.pathname === '/register') return <RegisterPage />;
-  if (window.location.pathname === '/verify-email') return <VerifyEmailPage />;
-  return (
-    <main>
-      <nav className="nav wrap" aria-label="Main navigation">
-        <a className="brand" href="#home" aria-label="PizzaHop home"><span className="brand-mark">P</span> PizzaHop<span className="brand-dot">.</span></a>
-        <div className="nav-links"><a href="#menu">Our menu</a><a href="#about">How it works</a></div>
-        <a className="nav-cta" href="/login">Sign in</a><a className="nav-cta" href="/register">Join PizzaHop <span aria-hidden="true">↗</span></a>
-      </nav>
 
-      <section className="hero wrap" id="home">
-        <div className="hero-copy">
-          <p className="eyebrow"><span /> FRESH FROM THE OVEN</p>
-          <h1>Good pizza.<br />Right on <em>time.</em></h1>
-          <p className="hero-text">Made with the good stuff, baked until golden, and hopping straight to your door.</p>
-          <div className="hero-actions"><a className="button button-dark" href="#menu">Find your pizza <span>→</span></a><span className="delivery-note">⌁ &nbsp; Hot at your doorstep</span></div>
-          <div className="social-proof"><span className="avatars">🍕 🧑🏽‍🍳 🍅</span><span><strong>Made fresh, always</strong><br />A little joy in every slice</span></div>
-        </div>
-        <div className="hero-art" aria-label="Illustration of a freshly baked pizza" role="img">
-          <div className="sunburst" />
-          <div className="orbit orbit-one">MADE WITH LOVE · BAKED FRESH · </div>
-          <div className="pizza"><div className="pizza-cheese"><i>🍅</i><i>🫒</i><i>🌿</i><i>🍅</i><i>🫒</i><i>🌿</i><i>🍄</i><i>🫒</i></div></div>
-          <div className="floating-card"><span>✦</span><div><strong>Freshly baked</strong><small>Every single order</small></div></div>
-          <span className="spark spark-one">✳</span><span className="spark spark-two">✦</span>
-        </div>
-      </section>
-
-      <section className="menu-section" id="menu"><div className="wrap">
-        <div className="section-heading"><div><p className="eyebrow">THE CROWD PLEASERS</p><h2>A good place to <em>start.</em></h2></div><a className="text-link" href="#menu">See the menu <span>→</span></a></div>
-        <div className="pizza-grid">{pizzas.map((pizza) => <article className="pizza-card" key={pizza.name}><div className={`card-art ${pizza.tone}`}><span>{pizza.art}</span><b>FRESH PICK</b></div><div className="card-info"><div><h3>{pizza.name}</h3><p>{pizza.detail}</p></div><strong>{pizza.price}</strong></div><a className="card-link" href="#menu" aria-label={`Explore ${pizza.name}`}>Explore pizza <span>↗</span></a></article>)}</div>
-      </div></section>
-      <footer id="about"><div className="wrap footer-inner"><a className="brand" href="#home"><span className="brand-mark">P</span> PizzaHop<span className="brand-dot">.</span></a><span>Good things take dough. We make it worth the wait.</span><span>© 2026 PizzaHop</span></div></footer>
-    </main>
-  );
+  return <main>
+    <nav className="nav wrap" aria-label="Main navigation">
+      <a className="brand" href="#home" aria-label="PizzaHop home"><span className="brand-mark">P</span> PizzaHop<span className="brand-dot">.</span></a>
+      <div className="nav-links"><a href="#menu">Our menu</a><a href="#about">How it works</a></div>
+      <div className="catalogue-nav-actions"><a className="nav-cta" href="/cart">Your cart</a><a className="nav-cta" href="/login">Sign in</a><a className="nav-cta" href="/register">Join PizzaHop</a></div>
+    </nav>
+    <section className="hero wrap" id="home">
+      <div className="hero-copy"><p className="eyebrow"><span /> FRESH FROM THE OVEN</p><h1>Good pizza.<br />Right on <em>time.</em></h1><p className="hero-text">Made with the good stuff, baked until golden, and hopping straight to your door.</p><div className="hero-actions"><a className="button button-dark" href="/catalogue">Find your pizza <span>→</span></a><span className="delivery-note">Hot at your doorstep</span></div><div className="social-proof"><span className="avatars">🍕 👩🏽‍🍳 🍅</span><span><strong>Made fresh, always</strong><br />A little joy in every slice</span></div></div>
+      <div className="hero-art" aria-label="Illustration of a freshly baked pizza" role="img"><div className="sunburst"/><div className="orbit orbit-one">MADE WITH LOVE · BAKED FRESH · </div><div className="pizza"><div className="pizza-cheese"><i>🍅</i><i>🫒</i><i>🌿</i><i>🍅</i><i>🫒</i><i>🌿</i><i>🍄</i><i>🫒</i></div></div><div className="floating-card"><span>✦</span><div><strong>Freshly baked</strong><small>Every single order</small></div></div><span className="spark spark-one">✳</span><span className="spark spark-two">✦</span></div>
+    </section>
+    <CataloguePreview />
+    <footer id="about"><div className="wrap footer-inner"><a className="brand" href="#home"><span className="brand-mark">P</span> PizzaHop<span className="brand-dot">.</span></a><span>Good things take dough. We make it worth the wait.</span><span>© 2026 PizzaHop</span></div></footer>
+  </main>;
 }
 
 export default App;
