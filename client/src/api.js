@@ -45,10 +45,10 @@ export async function postAuth(path, body) {
   return data;
 }
 
-export async function authRequest(path, { method = 'GET', body, token = accessToken } = {}) {
+export async function authRequest(path, { method = 'GET', body, token = accessToken, headers = {} } = {}) {
   const response = await fetch(`${apiBase}${path}`, {
     method, credentials: 'include',
-    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   if (response.status === 204) return null;

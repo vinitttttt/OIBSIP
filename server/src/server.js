@@ -2,10 +2,12 @@ import app from './app.js';
 import { connectDatabase } from './config/database.js';
 import { env } from './config/env.js';
 import { startInventoryAlertScheduler } from './services/inventoryAlertService.js';
+import { startOrderExpiryScheduler } from './services/orderExpiryScheduler.js';
 
 try {
   await connectDatabase(env.mongoUri);
   startInventoryAlertScheduler();
+  startOrderExpiryScheduler();
   console.info('MongoDB connected');
   app.listen(env.port, () => console.info(`PizzaHop API listening on http://localhost:${env.port}`));
 } catch (error) {

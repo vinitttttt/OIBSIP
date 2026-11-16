@@ -4,7 +4,9 @@ import VerifyEmailPage from './VerifyEmailPage.jsx';
 import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from './AuthPages.jsx';
 import { CartPage, CataloguePage, CataloguePreview, PizzaDetailPage } from './CataloguePages.jsx';
 import InventoryDashboard from './InventoryDashboard.jsx';
+import AdminOrdersDashboard from './AdminOrdersDashboard.jsx';
 import { authRequest, setAccessToken } from './api.js';
+import { CheckoutPage, OrderConfirmationPage, OrderHistoryPage, PaymentResultPage } from './OrderPages.jsx';
 
 function App() {
   const [account, setAccount] = useState(null);
@@ -13,6 +15,9 @@ function App() {
   const isAdmin = path === '/admin' || path.startsWith('/admin/');
   const protectedPage = isAdmin || path === '/account';
   const pizzaRoute = /^\/pizza\/([^/]+)$/.exec(path);
+  const checkoutRoute = /^\/checkout\/([^/]+)$/.exec(path);
+  const paymentResultRoute = /^\/payment-result\/([^/]+)$/.exec(path);
+  const orderRoute = /^\/orders\/([^/]+)$/.exec(path);
 
   useEffect(() => {
     if (!protectedPage) return;
@@ -31,6 +36,10 @@ function App() {
   if (path === '/verify-email') return <VerifyEmailPage />;
   if (path === '/catalogue') return <CataloguePage />;
   if (path === '/cart') return <CartPage />;
+  if (path === '/orders') return <OrderHistoryPage />;
+  if (checkoutRoute) return <CheckoutPage orderId={decodeURIComponent(checkoutRoute[1])} />;
+  if (paymentResultRoute) return <PaymentResultPage orderId={decodeURIComponent(paymentResultRoute[1])} />;
+  if (orderRoute) return <OrderConfirmationPage orderId={decodeURIComponent(orderRoute[1])} />;
   if (pizzaRoute) return <PizzaDetailPage productId={decodeURIComponent(pizzaRoute[1])} />;
   if (protectedPage) {
     if (authState === 'loading') return <main className="auth-page"><section className="auth-card">Checking your session…</section></main>;
@@ -38,7 +47,7 @@ function App() {
     const logout = async () => {
       try { await authRequest(`${isAdmin ? '/admin/auth' : '/auth'}/logout`, { method: 'POST', token: null }); } finally { setAccessToken(null); setAccount(null); setAuthState('signed-out'); }
     };
-    if (isAdmin) return <InventoryDashboard onLogout={logout}/>;
+    if (isAdmin) return path === '/admin/orders' ? <AdminOrdersDashboard onLogout={logout}/> : <InventoryDashboard onLogout={logout}/>;
     return <main className="auth-page"><nav className="auth-nav"><a className="brand" href="/"><span className="brand-mark">P</span> PizzaHop<span className="brand-dot">.</span></a><button className="button button-outline" onClick={logout}>Sign out</button></nav><section className="auth-card"><p className="eyebrow"><span /> {isAdmin ? 'ADMIN ACCESS' : 'YOUR ACCOUNT'}</p><h1>{isAdmin ? 'Welcome, admin.' : `Welcome, ${account.name}.`}</h1><p className="auth-intro">Signed in as {account.email}</p><p className="auth-intro">{isAdmin ? 'Your admin authentication is ready.' : 'Your PizzaHop account is ready.'}</p></section></main>;
   }
 

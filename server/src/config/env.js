@@ -82,6 +82,10 @@ const inventoryLowStockThreshold = positiveInt('INVENTORY_LOW_STOCK_THRESHOLD', 
 const inventoryAlertCheckIntervalMs = positiveInt('INVENTORY_ALERT_CHECK_INTERVAL_MS', '300000', 86_400_000);
 const inventoryAlertEmail = process.env.INVENTORY_ALERT_EMAIL?.trim() || process.env.ADMIN_SEED_EMAIL?.trim().toLowerCase();
 if (inventoryAlertEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inventoryAlertEmail)) throw new Error('INVENTORY_ALERT_EMAIL must be a valid email address');
+const mockPaymentsValue = process.env.MOCK_PAYMENTS_ENABLED?.trim().toLowerCase();
+if (mockPaymentsValue && !['true', 'false'].includes(mockPaymentsValue)) throw new Error('MOCK_PAYMENTS_ENABLED must be true or false');
+const mockPaymentsEnabled = mockPaymentsValue ? mockPaymentsValue === 'true' : nodeEnv !== 'production';
+if (nodeEnv === 'production' && mockPaymentsEnabled) throw new Error('Mock payments must not be enabled in production');
 
 export const env = Object.freeze({
   nodeEnv,
@@ -110,4 +114,5 @@ export const env = Object.freeze({
   inventoryLowStockThreshold,
   inventoryAlertEmail,
   inventoryAlertCheckIntervalMs,
+  mockPaymentsEnabled,
 });

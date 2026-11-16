@@ -40,7 +40,7 @@ The Vite client runs on port 5173 and the API on port 3000 by default. Set `PORT
 
 ## Milestone scope
 
-The current milestones provide the app shell, customer registration and verification, customer/admin login, refresh sessions, logout, password reset, a pizza catalogue and customizer, a customer cart, and an admin inventory dashboard. Checkout, payments, and order management are not included yet.
+The implemented milestones provide the app shell, customer registration and verification, customer/admin login, refresh sessions, password reset, catalogue and customizer, customer cart, admin inventory management, and customer checkout with a development-only simulated payment provider.
 
 ## Customer email verification (Milestone 2B)
 
@@ -64,7 +64,7 @@ Run `npm run seed:catalogue --workspace @pizzahop/server` after MongoDB is avail
 
 Catalogue endpoints are `GET /api/v1/catalogue`, `GET /api/v1/catalogue/:id`, `GET /api/v1/customizer/options`, and `POST /api/v1/customizer/price`. The quote body contains `productId`, `baseId`, `sauceId`, `cheeseId`, and `vegetableIds`; price fields are rejected. Customer cart endpoints are `GET /api/v1/cart`, `POST /api/v1/cart/items`, `PATCH /api/v1/cart/items/:itemId`, and `DELETE /api/v1/cart/items/:itemId`, all protected by customer JWT authorization. Cart lines store selected IDs and quantity; displayed prices and subtotals are recalculated from current product and ingredient records.
 
-Open `/catalogue`, choose a pizza, customize it, and add it to the cart. A customer must sign in before adding a pizza; `/cart` supports quantity changes and removal. Cart data is per customer. There is no checkout or stock deduction in this milestone.
+Open `/catalogue`, choose a pizza, customize it, and add it to the cart. A customer must sign in before adding a pizza; `/cart` supports quantity changes and removal. Cart data is per customer. Checkout validates the saved cart against current MongoDB catalogue and inventory data.
 
 ## Admin inventory management (Milestone 4)
 
@@ -73,3 +73,23 @@ Set `ADMIN_SEED_EMAIL` and `ADMIN_SEED_PASSWORD` as described in Milestone 2C, t
 Configure `INVENTORY_LOW_STOCK_THRESHOLD` (default `10`) for the initial threshold on seeded ingredients and `INVENTORY_ALERT_CHECK_INTERVAL_MS` (default `300000`, five minutes) for the scheduled check interval. Set `INVENTORY_ALERT_EMAIL` to the alert recipient; it falls back to `ADMIN_SEED_EMAIL`. Configure the existing `RESEND_API_KEY` and `EMAIL_FROM` settings to deliver alerts. An alert is sent when available stock (`onHand - reserved`) falls below an ingredient's threshold; the next alert for that ingredient is sent only after it recovers to the threshold or higher and falls below again.
 
 Admin APIs: `GET /api/v1/admin/inventory`, `GET /api/v1/admin/inventory/summary`, and `PATCH /api/v1/admin/inventory/:id`. Every endpoint requires an admin access JWT. The patch body is `{ "delta": 5, "reason": "Delivery received" }`; the delta must be a non-zero whole number.
+
+## Orders and simulated payments (Milestone 5)
+
+The order flow is customer-only. `POST /api/v1/orders` creates an order from the authenticated customer's server-side cart, snapshots product/ingredient prices in paise, reserves inventory in a MongoDB transaction, and clears the cart only when the transaction succeeds. Send a UUID in the `Idempotency-Key` header to make checkout retries safe. Customers can list their own orders with `GET /api/v1/orders` and view one with `GET /api/v1/orders/:id`.
+
+Payment routes are `POST /api/v1/payments/mock/initialize` with `{ "orderId": "..." }` and `POST /api/v1/payments/mock/confirm` with `{ "attemptId": "...", "confirmationToken": "...", "outcome": "success" }` (or `failure`). Both require a customer access JWT; the server-issued one-time confirmation token is bound to that customer's pending attempt. A successful simulation consumes reserved stock, while failure or expiry releases it. Pending reservations expire after 15 minutes; a lightweight in-process scheduler scans every 30 seconds. The simulated checkout is clearly labelled **TEST PAYMENT / SIMULATED PAYMENT** and transfers no money.
+
+Set `MOCK_PAYMENTS_ENABLED=true` in `server/.env` for local development (the example file enables it). The server rejects this setting in production, and the provider factory refuses all simulated payments when `NODE_ENV=production` or the flag is off. The confirmation endpoint is the controlled development mock workflow, not a general order-status update endpoint. Do not enable simulated payments in a deployed production environment.
+
+Payment integration is behind the `PaymentProvider` interface (`initialize` and `simulateOutcome`) and the provider factory. A future Razorpay adapter can implement the same boundary and provide verified provider callbacks/confirmation, while order creation, price snapshots, inventory reservations, and inventory finalization remain in their existing services. Razorpay is not integrated in this milestone.
+
+Customer pages: `/cart` → `/checkout/:orderId` → `/payment-result/:orderId`, with order details at `/orders/:orderId` and history at `/orders`. MongoDB must be a replica set (`rs0`) because checkout and inventory status updates use transactions.
+
+## Admin order management and customer tracking (Milestone 6)
+
+Sign in at `/admin/login`, then use `/admin/orders` to review the latest 100 orders, filter by fulfillment status, inspect customer and item snapshots, and advance paid orders through `PLACED` → `CONFIRMED` → `PREPARING` → `OUT_FOR_DELIVERY` → `DELIVERED`. Status changes are recorded with timestamp and admin actor. Fulfillment updates do not alter inventory. Unpaid orders cannot advance; cancellation is not supported because it would need coordinated payment/refund and reservation handling.
+
+Admin APIs are `GET /api/v1/admin/orders` (optional `?status=PREPARING` filter), `GET /api/v1/admin/orders/:id`, and `PATCH /api/v1/admin/orders/:id/status` with `{ "status": "PREPARING" }`. All require admin authentication; status changes also enforce the trusted-origin check. Customer tracking is `GET /api/v1/orders/:id/tracking`; it is customer-authenticated and only returns the requesting customer's order. The `/orders/:id` page shows the progress timeline and polls every 10 seconds until delivery.
+
+When Resend is configured, a status-change email is sent after each actual transition. Repeating the current status is a no-op and does not send a duplicate notification. Delivery errors are logged without undoing the already-recorded status change. If Resend is not configured, status tracking remains available without email.

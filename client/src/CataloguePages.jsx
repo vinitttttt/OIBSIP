@@ -115,6 +115,7 @@ export function PizzaDetailPage({ productId }) {
 export function CartPage() {
   const [cart, setCart] = useState(null);
   const [state, setState] = useState({ loading: true, error: '' });
+  const [checkingOut, setCheckingOut] = useState(false);
   async function loadCart() {
     try {
       const token = await ensureCustomerSession();
@@ -131,11 +132,22 @@ export function CartPage() {
     try { const token = await ensureCustomerSession(); setCart(await authRequest(`/cart/items/${item.id}`, { method: 'DELETE', token })); }
     catch (error) { setState({ loading: false, error: error.message }); }
   }
+  async function checkout() {
+    setCheckingOut(true); setState((current) => ({ ...current, error: '' }));
+    try {
+      const token = await ensureCustomerSession();
+      let idempotencyKey = sessionStorage.getItem('pizzahop-order-key');
+      if (!idempotencyKey) { idempotencyKey = crypto.randomUUID(); sessionStorage.setItem('pizzahop-order-key', idempotencyKey); }
+      const result = await authRequest('/orders', { method: 'POST', body: {}, token, headers: { 'Idempotency-Key': idempotencyKey } });
+      sessionStorage.removeItem('pizzahop-order-key');
+      window.location.assign(`/checkout/${result.order.id}`);
+    } catch (error) { setCheckingOut(false); setState((current) => ({ ...current, error: error.message })); }
+  }
   const authError = state.error.toLowerCase().includes('authentication') || state.error.toLowerCase().includes('customer account');
   return <main className="catalogue-page"><SiteNav/><header className="catalogue-heading wrap cart-heading"><p className="eyebrow"><span/> YOUR NEXT SLICE</p><h1>Your <em>cart.</em></h1></header><section className="wrap cart-layout">
     {state.loading ? <p className="catalogue-status">Loading your cart…</p> : state.error ? <div className="cart-empty"><p className="form-error" role="alert">{state.error}</p><a className="button button-dark" href={authError ? `/login?next=${encodeURIComponent('/cart')}` : '/catalogue'}>{authError ? 'Sign in to your cart' : 'Browse the menu'} <span>→</span></a></div> : !cart?.items.length ? <div className="cart-empty"><h2>Your cart is taking a little break.</h2><p>Pick a kitchen favorite and make it yours.</p><a className="button button-dark" href="/catalogue">Explore pizzas <span>→</span></a></div> : <>
       <div className="cart-lines">{cart.items.map((item) => <article className="cart-line" key={item.id}><img src={item.product.image} alt=""/><div className="cart-line-main"><a href={`/pizza/${item.product.id}`}><h2>{item.product.name}</h2></a><p>{item.ingredients.map((ingredient) => ingredient.name).join(' · ')}</p><button className="remove-item" onClick={() => removeItem(item)}>Remove</button></div><label className="quantity-picker">Qty<select value={item.quantity} onChange={(event) => setQuantity(item, event.target.value)}>{Array.from({ length: 20 }, (_, index) => index + 1).map((quantity) => <option key={quantity}>{quantity}</option>)}</select></label><strong className="line-subtotal">{money(item.subtotal)}</strong></article>)}</div>
-      <aside className="cart-summary"><p>ORDER SUMMARY</p><div><span>Subtotal</span><strong>{money(cart.subtotal)}</strong></div><small>Delivery and checkout will be available in a later milestone.</small><a className="button button-dark" href="/catalogue">Add another pizza <span>→</span></a></aside>
+      <aside className="cart-summary"><p>ORDER SUMMARY</p><div><span>Subtotal</span><strong>{money(cart.subtotal)}</strong></div><small>Mock checkout only. No money is transferred.</small><button className="button button-dark" onClick={checkout} disabled={checkingOut}>{checkingOut ? 'Preparing order…' : 'Continue to checkout'} <span>→</span></button><a className="text-link" href="/catalogue">Add another pizza <span>→</span></a></aside>
     </>}
   </section></main>;
 }

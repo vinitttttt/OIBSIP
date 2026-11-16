@@ -33,7 +33,7 @@ export default function InventoryDashboard({ onLogout }) {
   }
 
   return <main className="admin-inventory-page">
-    <header className="admin-inventory-top"><a className="brand" href="/"><span className="brand-mark">P</span> PizzaHop<span className="brand-dot">.</span></a><div><a href="/catalogue">View menu</a><button onClick={onLogout}>Sign out</button></div></header>
+    <header className="admin-inventory-top"><a className="brand" href="/"><span className="brand-mark">P</span> PizzaHop<span className="brand-dot">.</span></a><div><a href="/admin/orders">Orders</a><a href="/catalogue">View menu</a><button onClick={onLogout}>Sign out</button></div></header>
     <section className="admin-inventory-content">
       <div className="admin-inventory-heading"><div><p className="eyebrow"><span/> ADMIN WORKSPACE</p><h1>Ingredient <em>inventory.</em></h1><p>Keep an eye on ingredients and record stock changes.</p></div><span className="inventory-live"><i/> LIVE STOCK</span></div>
       <div className="inventory-metrics">

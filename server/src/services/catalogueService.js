@@ -32,14 +32,18 @@ export async function getCustomizerOptions() {
   }))]));
 }
 
-async function resolveCustomization(selection, requiredQuantity = 1) {
+async function resolveCustomization(selection, requiredQuantity = 1, session) {
   if (!mongoose.isValidObjectId(selection.productId)) throw authError(400, 'INVALID_PRODUCT_ID', 'Product id is invalid.');
-  const product = await Product.findOne({ _id: selection.productId, available: true }).lean();
+  let productQuery = Product.findOne({ _id: selection.productId, available: true });
+  if (session) productQuery = productQuery.session(session);
+  const product = await productQuery.lean();
   if (!product) throw authError(400, 'UNAVAILABLE_SELECTION', 'That pizza is unavailable.');
 
   const ids = [selection.baseId, selection.sauceId, selection.cheeseId, ...selection.vegetableIds];
   if (new Set(ids).size !== ids.length) throw authError(400, 'INVALID_INGREDIENTS', 'Ingredient selections must be unique.');
-  const items = await InventoryItem.find({ _id: { $in: ids }, isAvailable: true }).lean();
+  let itemsQuery = InventoryItem.find({ _id: { $in: ids }, isAvailable: true });
+  if (session) itemsQuery = itemsQuery.session(session);
+  const items = await itemsQuery.lean();
   const byId = new Map(items.map((item) => [String(item._id), item]));
   const picked = [
     [selection.baseId, 'base'], [selection.sauceId, 'sauce'], [selection.cheeseId, 'cheese'],
@@ -54,8 +58,8 @@ async function resolveCustomization(selection, requiredQuantity = 1) {
   return { product, ingredients: picked, total };
 }
 
-export async function priceCustomization(selection) {
-  const resolved = await resolveCustomization(selection);
+export async function priceCustomization(selection, { session, requiredQuantity = 1 } = {}) {
+  const resolved = await resolveCustomization(selection, requiredQuantity, session);
   return {
     product: serializeProduct(resolved.product),
     ingredients: resolved.ingredients.map((item) => ({ id: String(item._id), name: item.name, category: item.category, price: item.price })),
@@ -63,6 +67,8 @@ export async function priceCustomization(selection) {
     currency: 'INR',
   };
 }
+
+export const priceCustomizationForOrder = priceCustomization;
 
 function sameSelection(line, selection) {
   const same = (left, right) => String(left) === String(right);
